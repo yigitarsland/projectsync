@@ -1,6 +1,16 @@
 const Project = require('../models/Project');
 const User = require('../models/User');
 
+exports.getAllProjects = async (req, res) => {
+  try {
+    const projects = await Project.find({}, 'id name'); // Or select fields you want to send
+    res.json(projects);
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+};
+
 exports.createProject = async (req, res, next) => {
   try {
     // Find or create user document
