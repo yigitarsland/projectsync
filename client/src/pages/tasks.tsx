@@ -96,11 +96,12 @@ export default function TasksPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ title, description, dueDate: date }),
+      body: JSON.stringify({ title, description, dueDate: date, status }), // ← add `status` here
     });
     if (!res.ok) throw new Error("Create failed");
     return mapTask(await res.json());
   };
+
 
   const updateTaskAPI = async (
     taskId: string,
