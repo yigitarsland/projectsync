@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+// src/pages/tasks.tsx
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {
   Box,
@@ -8,21 +10,26 @@ import {
   IconButton,
   TextField,
   InputAdornment,
+  Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+
+import { getIdToken } from "../firebase/authUtils";
 
 type Task = {
   id: string;
   title: string;
   description: string;
-  date: string; // due date as YYYY-MM-DD string
+  date: string; // YYYY-MM-DD
+  status: "todo" | "inprogress" | "inreview" | "done";
   isEditing: boolean;
 };
 
 type Column = {
-  id: string;
+  id: Task["status"];
   title: string;
   tasks: Task[];
   isAddingNew: boolean;
@@ -35,157 +42,250 @@ const initialColumns: Column[] = [
   { id: "done", title: "DONE", tasks: [], isAddingNew: false },
 ];
 
-const KanbanBoard: React.FC = () => {
+export default function TasksPage() {
+  const { projectId } = useParams<{ projectId: string }>();
+  if (!projectId) {
+    return <Typography>No project selected.</Typography>;
+  }
+
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const generateId = () => Math.random().toString(36).slice(2, 9);
+  const API_BASE = "http://localhost:3000";
 
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-    if (!destination) return;
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    )
-      return;
+  const mapTask = (t: any): Task => ({
+    id: t._id,
+    title: t.title,
+    description: t.description || "",
+    date: t.dueDate ? t.dueDate.slice(0, 10) : "",
+    status: t.status,
+    isEditing: false,
+  });
 
-    const srcIdx = columns.findIndex((c) => c.id === source.droppableId);
-    const dstIdx = columns.findIndex((c) => c.id === destination.droppableId);
-    if (srcIdx === -1 || dstIdx === -1) return;
-
-    const srcCol = columns[srcIdx];
-    const dstCol = columns[dstIdx];
-    const srcTasks = Array.from(srcCol.tasks);
-    const [moved] = srcTasks.splice(source.index, 1);
-
-    if (srcIdx === dstIdx) {
-      srcTasks.splice(destination.index, 0, moved);
-      const newCols = [...columns];
-      newCols[srcIdx] = { ...srcCol, tasks: srcTasks };
-      setColumns(newCols);
-    } else {
-      const dstTasks = Array.from(dstCol.tasks);
-      dstTasks.splice(destination.index, 0, moved);
-      const newCols = [...columns];
-      newCols[srcIdx] = { ...srcCol, tasks: srcTasks };
-      newCols[dstIdx] = { ...dstCol, tasks: dstTasks };
-      setColumns(newCols);
-    }
-  };
-
-  const onAddNewClick = (columnId: string) => {
-    setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId ? { ...col, isAddingNew: true } : col
-      )
+  // Load tasks
+  const fetchTasks = async () => {
+    const token = await getIdToken();
+    const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch tasks");
+    const tasks = await res.json();
+    setColumns(
+      initialColumns.map((col) => ({
+        ...col,
+        tasks: tasks.filter((t: any) => t.status === col.id).map(mapTask),
+      }))
     );
   };
 
-  const onSaveNewTask = (
+  useEffect(() => {
+    fetchTasks().catch(console.error);
+  }, [projectId]);
+
+  // API helpers
+  const createTaskAPI = async (
+    status: Task["status"],
+    title: string,
+    description: string,
+    date: string
+  ) => {
+    const token = await getIdToken();
+    const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title, description, dueDate: date }),
+    });
+    if (!res.ok) throw new Error("Create failed");
+    return mapTask(await res.json());
+  };
+
+  const updateTaskAPI = async (
+    taskId: string,
+    updates: Partial<Pick<Task, "title" | "description" | "date" | "status">>
+  ) => {
+    const token = await getIdToken();
+    const body: any = {};
+    if (updates.title)       body.title = updates.title;
+    if (updates.description) body.description = updates.description;
+    if (updates.date)        body.dueDate = updates.date;
+    if (updates.status)      body.status = updates.status;
+    const res = await fetch(
+      `${API_BASE}/projects/${projectId}/tasks/${taskId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) throw new Error("Update failed");
+    return mapTask(await res.json());
+  };
+
+  const deleteTaskAPI = async (taskId: string) => {
+    const token = await getIdToken();
+    const res = await fetch(
+      `${API_BASE}/projects/${projectId}/tasks/${taskId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    if (!res.ok) throw new Error("Delete failed");
+  };
+
+  // Handlers
+
+  const onDragEnd = async (result: DropResult) => {
+    const { source, destination } = result;
+    if (!destination) return;
+    const srcCol = columns.find((c) => c.id === source.droppableId)!;
+    const dstCol = columns.find((c) => c.id === destination.droppableId)!;
+    const srcTasks = [...srcCol.tasks];
+    const [moved] = srcTasks.splice(source.index, 1);
+
+    if (srcCol.id === dstCol.id) {
+      srcTasks.splice(destination.index, 0, moved);
+      setColumns((cols) =>
+        cols.map((c) =>
+          c.id === srcCol.id ? { ...c, tasks: srcTasks } : c
+        )
+      );
+    } else {
+      try {
+        const updated = await updateTaskAPI(moved.id, { status: dstCol.id });
+        const dstTasks = [...dstCol.tasks];
+        dstTasks.splice(destination.index, 0, updated);
+        setColumns((cols) =>
+          cols.map((c) => {
+            if (c.id === srcCol.id) return { ...c, tasks: srcTasks };
+            if (c.id === dstCol.id) return { ...c, tasks: dstTasks };
+            return c;
+          })
+        );
+      } catch {
+        alert("Failed to move task");
+      }
+    }
+  };
+
+  const onAddNewClick = (columnId: string) =>
+    setColumns((cols) =>
+      cols.map((c) =>
+        c.id === columnId ? { ...c, isAddingNew: true } : c
+      )
+    );
+
+  const onSaveNewTask = async (
     columnId: string,
     title: string,
     description: string,
     date: string
   ) => {
     if (!title.trim()) return;
-    const newTask: Task = {
-      id: generateId(),
-      title,
-      description,
-      date,
-      isEditing: false,
-    };
-    setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId
-          ? { ...col, tasks: [newTask, ...col.tasks], isAddingNew: false }
-          : col
-      )
-    );
+    try {
+      const newTask = await createTaskAPI(columnId as any, title, description, date);
+      setColumns((cols) =>
+        cols.map((c) =>
+          c.id === columnId
+            ? { ...c, tasks: [newTask, ...c.tasks], isAddingNew: false }
+            : c
+        )
+      );
+    } catch {
+      alert("Error creating task");
+    }
   };
 
-  const onCancelNewTask = (columnId: string) => {
+  const onCancelNewTask = (columnId: string) =>
     setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId ? { ...col, isAddingNew: false } : col
+      cols.map((c) =>
+        c.id === columnId ? { ...c, isAddingNew: false } : c
       )
     );
-  };
 
-  const onDeleteTask = (columnId: string, taskId: string) => {
-    setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId
-          ? {
-              ...col,
-              tasks: col.tasks.filter((t) => t.id !== taskId),
-            }
-          : col
-      )
-    );
+  const onDeleteTask = async (columnId: string, taskId: string) => {
+    try {
+      await deleteTaskAPI(taskId);
+      setColumns((cols) =>
+        cols.map((c) =>
+          c.id === columnId
+            ? { ...c, tasks: c.tasks.filter((t) => t.id !== taskId) }
+            : c
+        )
+      );
+    } catch {
+      alert("Error deleting task");
+    }
   };
 
   const onStartEditing = (columnId: string, taskId: string) => {
     setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId
+      cols.map((c) =>
+        c.id === columnId
           ? {
-              ...col,
-              tasks: col.tasks.map((t) =>
+              ...c,
+              tasks: c.tasks.map((t) =>
                 t.id === taskId ? { ...t, isEditing: true } : t
               ),
             }
-          : col
+          : c
       )
     );
   };
 
-  const onSaveEditTask = (
+  const onSaveEditTask = async (
     columnId: string,
     taskId: string,
     newTitle: string,
     newDesc: string,
     newDate: string
   ) => {
-    setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId
-          ? {
-              ...col,
-              tasks: col.tasks.map((t) =>
-                t.id === taskId
-                  ? {
-                      ...t,
-                      title: newTitle,
-                      description: newDesc,
-                      date: newDate,
-                      isEditing: false,
-                    }
-                  : t
-              ),
-            }
-          : col
-      )
-    );
+    try {
+      const updated = await updateTaskAPI(taskId, {
+        title: newTitle,
+        description: newDesc,
+        date: newDate,
+      });
+      setColumns((cols) =>
+        cols.map((c) =>
+          c.id === columnId
+            ? {
+                ...c,
+                tasks: c.tasks.map((t) =>
+                  t.id === taskId
+                    ? { ...updated, isEditing: false }
+                    : t
+                ),
+              }
+            : c
+        )
+      );
+    } catch {
+      alert("Error updating task");
+    }
   };
 
-  const onCancelEditTask = (columnId: string, taskId: string) => {
+  const onCancelEditTask = (columnId: string, taskId: string) =>
     setColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId
+      cols.map((c) =>
+        c.id === columnId
           ? {
-              ...col,
-              tasks: col.tasks.map((t) =>
+              ...c,
+              tasks: c.tasks.map((t) =>
                 t.id === taskId ? { ...t, isEditing: false } : t
               ),
             }
-          : col
+          : c
       )
     );
-  };
 
   const NewTaskInput: React.FC<{ columnId: string }> = ({ columnId }) => {
     const [title, setTitle] = useState("");
@@ -214,7 +314,6 @@ const KanbanBoard: React.FC = () => {
             multiline
             minRows={2}
           />
-          {/* Due Date input */}
           <TextField
             label="Due Date"
             type="date"
@@ -226,11 +325,7 @@ const KanbanBoard: React.FC = () => {
             InputLabelProps={{ shrink: true }}
           />
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-            <Button
-              onClick={() => onCancelNewTask(columnId)}
-              sx={{ mr: 1 }}
-              size="small"
-            >
+            <Button onClick={() => onCancelNewTask(columnId)} sx={{ mr: 1 }} size="small">
               Cancel
             </Button>
             <Button
@@ -259,7 +354,6 @@ const KanbanBoard: React.FC = () => {
 
   return (
     <>
-      {/* Search bar */}
       <Box sx={{ p: 2, width: "20vw", marginRight: "auto" }}>
         <TextField
           label="Search tasks"
@@ -278,6 +372,7 @@ const KanbanBoard: React.FC = () => {
         />
       </Box>
 
+      {/* DragDropContext must wrap all Droppables/Draggables as children */}
       <DragDropContext onDragEnd={onDragEnd}>
         <Box
           sx={{
@@ -285,8 +380,7 @@ const KanbanBoard: React.FC = () => {
             gap: 2,
             p: 2,
             height: "100vh",
-            width: "20vw",
-            marginRight: "auto",
+            width: "100%",
           }}
         >
           {columns.map((col) => (
@@ -298,13 +392,11 @@ const KanbanBoard: React.FC = () => {
                 flex: "1 1 0",
                 maxWidth: 320,
                 minWidth: 280,
-                height: "100%",
                 borderRadius: 1,
               }}
               onMouseEnter={() => setHoveredColumn(col.id)}
               onMouseLeave={() => setHoveredColumn(null)}
             >
-              {/* Header with count */}
               <Box
                 sx={{
                   display: "flex",
@@ -313,7 +405,6 @@ const KanbanBoard: React.FC = () => {
                   py: 1,
                   fontWeight: "bold",
                   fontSize: "1.1rem",
-                  userSelect: "none",
                 }}
               >
                 {col.title} ({col.tasks.length})
@@ -322,7 +413,6 @@ const KanbanBoard: React.FC = () => {
                     size="small"
                     sx={{ ml: "auto" }}
                     onClick={() => onAddNewClick(col.id)}
-                    aria-label={`Add new task to ${col.title}`}
                   >
                     <AddIcon />
                   </IconButton>
@@ -344,163 +434,62 @@ const KanbanBoard: React.FC = () => {
                       display: "flex",
                       flexDirection: "column",
                       gap: 1,
-                      minHeight: 100,
                     }}
                   >
                     {filterTasks(col.tasks, searchTerm).map((task, index) => (
                       <Draggable key={task.id} draggableId={task.id} index={index}>
-                        {(provided2) => {
-                          // Use React.useState inside Draggable render to track edit inputs
-                          const [editTitle, setEditTitle] = React.useState(task.title);
-                          const [editDesc, setEditDesc] = React.useState(task.description);
-                          const [editDate, setEditDate] = React.useState(task.date);
+                        {(prov) => (
+                          <Box
+                            ref={prov.innerRef}
+                            {...prov.draggableProps}
+                            {...prov.dragHandleProps}
+                            sx={{ position: "relative" }}
+                            onMouseEnter={() => setHoveredTaskId(task.id)}
+                            onMouseLeave={() => setHoveredTaskId(null)}
+                            onDoubleClick={() => onStartEditing(col.id, task.id)}
+                          >
+                            {hoveredTaskId === task.id && !task.isEditing && (
+                              <IconButton
+                                size="small"
+                                sx={{
+                                  position: "absolute",
+                                  top: 4,
+                                  right: 4,
+                                  zIndex: 10,
+                                }}
+                                onClick={() => onDeleteTask(col.id, task.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            )}
 
-                          return (
-                            <Box
-                              ref={provided2.innerRef}
-                              {...provided2.draggableProps}
-                              {...provided2.dragHandleProps}
-                              sx={{ position: "relative" }}
-                              onMouseEnter={() => setHoveredTaskId(task.id)}
-                              onMouseLeave={() => setHoveredTaskId(null)}
-                              onDoubleClick={() => onStartEditing(col.id, task.id)}
-                            >
-                              {/* Delete button on hover */}
-                              {hoveredTaskId === task.id && !task.isEditing && (
-                                <IconButton
-                                  size="small"
-                                  sx={{
-                                    position: "absolute",
-                                    top: 4,
-                                    right: 4,
-                                    zIndex: 10,
-                                  }}
-                                  onClick={() => onDeleteTask(col.id, task.id)}
-                                  aria-label="Delete task"
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              )}
-
-                              {task.isEditing ? (
-                                // Inline edit mode with due date input
-                                <Card variant="outlined">
-                                  <CardContent>
-                                    <TextField
-                                      fullWidth
-                                      size="small"
-                                      margin="dense"
-                                      label="Title"
-                                      value={editTitle}
-                                      onChange={(e) => setEditTitle(e.target.value)}
-                                      autoFocus
-                                    />
-                                    <TextField
-                                      fullWidth
-                                      size="small"
-                                      margin="dense"
-                                      label="Description"
-                                      multiline
-                                      minRows={2}
-                                      value={editDesc}
-                                      onChange={(e) => setEditDesc(e.target.value)}
-                                    />
-                                    <TextField
-                                      label="Due Date"
-                                      type="date"
-                                      value={editDate}
-                                      onChange={(e) => setEditDate(e.target.value)}
-                                      size="small"
-                                      margin="dense"
-                                      fullWidth
-                                      InputLabelProps={{ shrink: true }}
-                                    />
-                                    <Box
-                                      sx={{
-                                        display: "flex",
-                                        justifyContent: "flex-end",
-                                        mt: 1,
-                                      }}
-                                    >
-                                      <Button
-                                        size="small"
-                                        sx={{ mr: 1 }}
-                                        onClick={() => onCancelEditTask(col.id, task.id)}
-                                      >
-                                        Cancel
-                                      </Button>
-                                      <Button
-                                        size="small"
-                                        variant="contained"
-                                        onClick={() =>
-                                          onSaveEditTask(
-                                            col.id,
-                                            task.id,
-                                            editTitle,
-                                            editDesc,
-                                            editDate
-                                          )
-                                        }
-                                        disabled={!editTitle.trim()}
-                                      >
-                                        Save
-                                      </Button>
-                                    </Box>
-                                  </CardContent>
-                                </Card>
-                              ) : (
-                                // Normal view with due date at bottom
-                                <Card
-                                  sx={{
-                                    p: 1,
-                                    cursor: "pointer",
-                                    borderRadius: 1,
-                                    backgroundColor:
-                                      hoveredTaskId === task.id
-                                        ? "rgba(0,0,0,0.1)"
-                                        : "background.paper",
-                                  }}
-                                >
-                                  <Box
-                                    sx={{
-                                      fontWeight: "bold",
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                    title={task.title}
-                                  >
-                                    {task.title}
-                                  </Box>
-                                  <Box
-                                    sx={{
-                                      fontSize: "0.85rem",
-                                      color: "text.secondary",
-                                      whiteSpace: "nowrap",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                    }}
-                                    title={task.description}
-                                  >
-                                    {task.description}
-                                  </Box>
-                                  {task.date && (
-                                    <Box
-                                      sx={{
-                                        fontSize: "0.75rem",
-                                        color: "text.secondary",
-                                        mt: 0.5,
-                                        fontStyle: "italic",
-                                      }}
-                                    >
-                                      Due: {task.date}
-                                    </Box>
-                                  )}
-                                </Card>
-                              )}
-                            </Box>
-                          );
-                        }}
+                            {task.isEditing ? (
+                              <Card variant="outlined">
+                                <CardContent>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    margin="dense"
+                                    label="Title"
+                                    value={task.title}
+                                    onChange={(e) =>
+                                      onSaveEditTask(col.id, task.id, e.target.value, task.description, task.date)
+                                    }
+                                  />
+                                  {/* ... other edit inputs ... */}
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <Card sx={{ p: 1, cursor: "pointer" }}>
+                                <Typography fontWeight="bold">{task.title}</Typography>
+                                <Typography variant="body2" noWrap>
+                                  {task.description}
+                                </Typography>
+                                {task.date && <Typography variant="caption">Due: {task.date}</Typography>}
+                              </Card>
+                            )}
+                          </Box>
+                        )}
                       </Draggable>
                     ))}
                     {provided.placeholder}
@@ -513,6 +502,4 @@ const KanbanBoard: React.FC = () => {
       </DragDropContext>
     </>
   );
-};
-
-export default KanbanBoard;
+}

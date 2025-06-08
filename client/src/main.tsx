@@ -1,3 +1,4 @@
+// src/main.tsx
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import {
@@ -14,6 +15,7 @@ import GanttChartPage from './pages/ganttchart';
 import ProgressPage from './pages/progress';
 import NotificationsPage from './pages/notifications';
 import SettingsPage from './pages/settings';
+import NavigateToLastProjectTasks from './pages/redirectTasks';  // make sure this default-export matches
 
 const router = createBrowserRouter([
   {
@@ -24,11 +26,15 @@ const router = createBrowserRouter([
         element: <Layout />,
         children: [
           {
-            index: true, // Equivalent to path: ""
+            index: true,  // Dashboard
             element: <DashboardPage />,
           },
           {
-            path: 'tasks',
+            path: 'tasks',  // “Tasks” link
+            element: <NavigateToLastProjectTasks />,
+          },
+          {
+            path: 'projects/:projectId/tasks',  // actual Kanban route
             element: <TasksPage />,
           },
           {

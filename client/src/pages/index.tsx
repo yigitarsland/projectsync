@@ -1,20 +1,24 @@
 import * as React from 'react';
-import Typography from '@mui/material/Typography';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import { useNavigate } from 'react-router-dom';
 
 import { getIdToken } from '../firebase/authUtils';  // Adjust path if needed
 
 type Project = {
-  id: number;
+  id: string;
   name: string;
 };
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -33,7 +37,9 @@ export default function DashboardPage() {
         },
       });
 
-      if (!res.ok) throw new Error(`Failed to fetch projects: ${res.statusText}`);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch projects: ${res.statusText}`);
+      }
 
       const data = await res.json();
       setProjects(data);
@@ -48,14 +54,16 @@ export default function DashboardPage() {
     fetchProjects();
   }, [fetchProjects]);
 
+      // Navigate to the Kanban board for the selected project
   const handleProjectSelect = (project: Project) => {
-    alert(`You selected: ${project.name}`);
-    // Replace alert with navigation or other logic
+    // remember this project
+    localStorage.setItem('lastProjectId', project.id);
+    navigate(`/projects/${project.id}/tasks`);
   };
 
   const handleCreateProject = async () => {
     const projectName = prompt('Enter new project name:');
-    if (!projectName || !projectName.trim()) return;
+    if (!projectName?.trim()) return;
 
     try {
       setLoading(true);
@@ -74,14 +82,73 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || `Failed to create project: ${res.statusText}`);
+        const { error } = await res.json();
+        throw new Error(error || `Failed to create project: ${res.statusText}`);
       }
 
-      // Optionally, get the newly created project from response
-      // const newProject = await res.json();
+      await fetchProjects();
+    } catch (err: any) {
+      setError(err.message || 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Refresh the projects list
+  const handleEditProject = async (project: Project) => {
+    const newName = prompt('Enter new project name:', project.name);
+    if (!newName?.trim() || newName === project.name) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = await getIdToken();
+      if (!token) throw new Error('User is not authenticated');
+
+      const res = await fetch(`http://localhost:3000/projects/${project.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || `Failed to update project: ${res.statusText}`);
+      }
+
+      await fetchProjects();
+    } catch (err: any) {
+      setError(err.message || 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project?')) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = await getIdToken();
+      if (!token) throw new Error('User is not authenticated');
+
+      const res = await fetch(`http://localhost:3000/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || `Failed to delete project: ${res.statusText}`);
+      }
+
       await fetchProjects();
     } catch (err: any) {
       setError(err.message || 'Unknown error');
@@ -95,23 +162,64 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h4" gutterBottom>
-          Select a Project
-        </Typography>
-        <Button variant="contained" color="primary" onClick={handleCreateProject}>
+      <Box display="flex" justifyContent="flex-end" alignItems="center" pr={1} pt={1} mb={0}>
+        <Button variant="outlined" color="primary" onClick={handleCreateProject} size="large">
           Create Project
         </Button>
       </Box>
-      <List>
-        {projects.map((project) => (
-          <ListItem key={project.id} disablePadding>
-            <ListItemButton onClick={() => handleProjectSelect(project)}>
-              <ListItemText primary={project.name} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
+
+      <Box width="70%" textAlign="left" px={0} mt={-6}>
+        <List>
+          {projects.map((project) => (
+            <ListItem
+              key={project.id}
+              disablePadding
+              sx={{
+                position: 'relative',
+                '&:hover .action-button': { visibility: 'visible' },
+              }}
+            >
+              <ListItemButton onClick={() => handleProjectSelect(project)}>
+                <Typography variant="h6" fontWeight="bold" sx={{ width: '100%' }}>
+                  {project.name}
+                </Typography>
+              </ListItemButton>
+
+              <IconButton
+                aria-label="edit"
+                size="small"
+                onClick={() => handleEditProject(project)}
+                sx={{
+                  position: 'absolute',
+                  right: 40,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  visibility: 'hidden',
+                }}
+                className="action-button"
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+
+              <IconButton
+                aria-label="delete"
+                size="small"
+                onClick={() => handleDeleteProject(project.id)}
+                sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  visibility: 'hidden',
+                }}
+                className="action-button"
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
     </>
   );
 }

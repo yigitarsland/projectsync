@@ -3,8 +3,12 @@ const User = require('../models/User');
 
 exports.getAllProjects = async (req, res) => {
   try {
-    const projects = await Project.find({}, 'id name'); // Or select fields you want to send
-    res.json(projects);
+    const projects = await Project.find({}, '_id name').lean();
+    const formattedProjects = projects.map(p => ({
+      id: p._id.toString(),
+      name: p.name,
+    }));
+    res.json(formattedProjects);
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
@@ -93,7 +97,7 @@ exports.deleteProject = async (req, res, next) => {
       return res.status(403).json({ error: 'Forbidden: Only owner can delete' });
     }
 
-    await project.remove();
+    await Project.findByIdAndDelete(req.params.projectId);
 
     res.json({ message: 'Project deleted' });
   } catch (err) {
