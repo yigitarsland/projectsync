@@ -2,6 +2,7 @@
   "name": "auth-vite-themed",
   "version": "0.1.0",
   "type": "module",
+  "proxy": "http://localhost:3000",
   "scripts": {
     "dev": "vite",
     "preview": "vite preview"

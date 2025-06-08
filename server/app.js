@@ -1,6 +1,7 @@
 const express = require('express');
 const morgan = require('morgan');
 const mongoose = require('mongoose');
+const cors = require('cors');             // <-- import cors
 const authenticate = require('./middlewares/authenticate');
 
 const projectRoutes = require('./routes/projects');
@@ -18,6 +19,13 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 app.use(morgan('combined'));
 app.use(express.json());
+
+// Add CORS middleware here — configure with your frontend URL!
+app.use(cors({
+  origin: 'http://localhost:5173',  // <-- Replace with your frontend URL & port
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true                 // <-- if you send cookies/auth headers
+}));
 
 // Firebase auth middleware for all routes
 app.use(authenticate);
