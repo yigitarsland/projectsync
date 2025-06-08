@@ -44,9 +44,7 @@ const initialColumns: Column[] = [
 
 export default function TasksPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  if (!projectId) {
-    return <Typography>No project selected.</Typography>;
-  }
+  if (!projectId) return <Typography>No project selected.</Typography>;
 
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
@@ -110,10 +108,10 @@ export default function TasksPage() {
   ) => {
     const token = await getIdToken();
     const body: any = {};
-    if (updates.title)       body.title = updates.title;
+    if (updates.title) body.title = updates.title;
     if (updates.description) body.description = updates.description;
-    if (updates.date)        body.dueDate = updates.date;
-    if (updates.status)      body.status = updates.status;
+    if (updates.date) body.dueDate = updates.date;
+    if (updates.status) body.status = updates.status;
     const res = await fetch(
       `${API_BASE}/projects/${projectId}/tasks/${taskId}`,
       {
@@ -141,38 +139,38 @@ export default function TasksPage() {
     if (!res.ok) throw new Error("Delete failed");
   };
 
-  // Handlers
-
-  const onDragEnd = async (result: DropResult) => {
+  // Optimistic onDragEnd
+  const onDragEnd = (result: DropResult) => {
     const { source, destination } = result;
     if (!destination) return;
+
     const srcCol = columns.find((c) => c.id === source.droppableId)!;
     const dstCol = columns.find((c) => c.id === destination.droppableId)!;
-    const srcTasks = [...srcCol.tasks];
+    const srcTasks = Array.from(srcCol.tasks);
     const [moved] = srcTasks.splice(source.index, 1);
 
     if (srcCol.id === dstCol.id) {
+      // reorder within same column
       srcTasks.splice(destination.index, 0, moved);
       setColumns((cols) =>
-        cols.map((c) =>
-          c.id === srcCol.id ? { ...c, tasks: srcTasks } : c
-        )
+        cols.map((c) => (c.id === srcCol.id ? { ...c, tasks: srcTasks } : c))
       );
     } else {
-      try {
-        const updated = await updateTaskAPI(moved.id, { status: dstCol.id });
-        const dstTasks = [...dstCol.tasks];
-        dstTasks.splice(destination.index, 0, updated);
-        setColumns((cols) =>
-          cols.map((c) => {
-            if (c.id === srcCol.id) return { ...c, tasks: srcTasks };
-            if (c.id === dstCol.id) return { ...c, tasks: dstTasks };
-            return c;
-          })
-        );
-      } catch {
-        alert("Failed to move task");
-      }
+      // move between columns
+      const dstTasks = Array.from(dstCol.tasks);
+      dstTasks.splice(destination.index, 0, moved);
+      setColumns((cols) =>
+        cols.map((c) => {
+          if (c.id === srcCol.id) return { ...c, tasks: srcTasks };
+          if (c.id === dstCol.id) return { ...c, tasks: dstTasks };
+          return c;
+        })
+      );
+      // fire update in background
+      updateTaskAPI(moved.id, { status: dstCol.id }).catch((err) => {
+        console.error("Failed to update task status", err);
+        fetchTasks().catch(console.error);
+      });
     }
   };
 
@@ -199,8 +197,9 @@ export default function TasksPage() {
             : c
         )
       );
-    } catch {
-      alert("Error creating task");
+    } catch (err: any) {
+      console.error("Error creating task", err);
+      alert(`Error creating task: ${err.message}`);
     }
   };
 
@@ -221,8 +220,9 @@ export default function TasksPage() {
             : c
         )
       );
-    } catch {
-      alert("Error deleting task");
+    } catch (err: any) {
+      console.error("Error deleting task", err);
+      alert(`Error deleting task: ${err.message}`);
     }
   };
 
@@ -268,8 +268,9 @@ export default function TasksPage() {
             : c
         )
       );
-    } catch {
-      alert("Error updating task");
+    } catch (err: any) {
+      console.error("Error updating task", err);
+      alert(`Error updating task: ${err.message}`);
     }
   };
 
@@ -372,7 +373,6 @@ export default function TasksPage() {
         />
       </Box>
 
-      {/* DragDropContext must wrap all Droppables/Draggables as children */}
       <DragDropContext onDragEnd={onDragEnd}>
         <Box
           sx={{
@@ -438,12 +438,15 @@ export default function TasksPage() {
                   >
                     {filterTasks(col.tasks, searchTerm).map((task, index) => (
                       <Draggable key={task.id} draggableId={task.id} index={index}>
-                        {(prov) => (
+                        {(_prov, snapshot) => (
                           <Box
-                            ref={prov.innerRef}
-                            {...prov.draggableProps}
-                            {...prov.dragHandleProps}
-                            sx={{ position: "relative" }}
+                            ref={_prov.innerRef}
+                            {..._prov.draggableProps}
+                            {..._prov.dragHandleProps}
+                            sx={{
+                              position: "relative",
+                              opacity: snapshot.isDragging ? 0.8 : 1,
+                            }}
                             onMouseEnter={() => setHoveredTaskId(task.id)}
                             onMouseLeave={() => setHoveredTaskId(null)}
                             onDoubleClick={() => onStartEditing(col.id, task.id)}
