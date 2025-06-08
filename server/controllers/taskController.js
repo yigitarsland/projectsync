@@ -112,36 +112,37 @@ exports.updateTask = async (req, res, next) => {
   }
 };
 
-exports.deleteTask = async (req, res, next) => {
+exports.deleteTask = async (req, res) => {
+  const { projectId, taskId } = req.params;
+
   try {
-    const { projectId, taskId } = req.params;
-
+    // Step 1: Ensure project exists
     const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
-
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: 'Task not found' });
-
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-
-    const allowedUserIds = project.members.map(m => m.toString());
-    allowedUserIds.push(project.owner.toString());
-    if (!allowedUserIds.includes(user._id.toString())) {
-      return res.status(403).json({ error: 'Forbidden' });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Remove task from project's tasks array
-    project.tasks = project.tasks.filter(tid => tid.toString() !== taskId);
+    // Step 2: Get the task
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Step 3: Validate task belongs to project
+    if (task.project && task.project.toString() !== projectId) {
+      return res.status(403).json({ error: 'Task does not belong to this project' });
+    }
+
+    // Step 4: Delete task
+    await Task.findByIdAndDelete(taskId);
+
+    // Step 5: Remove reference from project
+    project.tasks.pull(taskId);
     await project.save();
 
-    await task.remove();
-
-    const io = req.app.get('io');
-    io.to(projectId).emit('taskDeleted', { taskId });
-
-    res.json({ message: 'Task deleted' });
-  } catch (err) {
-    next(err);
+    res.status(200).json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
   }
 };

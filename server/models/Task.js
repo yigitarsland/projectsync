@@ -13,8 +13,13 @@ const taskSchema = new mongoose.Schema({
     enum: ['todo', 'inprogress', 'inreview', 'done'],
     default: 'todo',
   },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium',
+  },
   dueDate: Date,
-  assignee: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   subtasks: [subtaskSchema],
   dependencies: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }]
 });
