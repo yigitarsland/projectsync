@@ -46,3 +46,6 @@ build/
 
 # Mac system files
 .DS_Store
+
+# Firebase Config
+config/serviceAccountKey.json
