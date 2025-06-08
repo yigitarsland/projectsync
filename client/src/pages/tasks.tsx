@@ -4,7 +4,6 @@ import { useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {
   Box,
-  Button,
   Card,
   CardContent,
   IconButton,
@@ -15,7 +14,8 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
 
 import { getIdToken } from "../firebase/authUtils";
 
@@ -62,7 +62,7 @@ export default function TasksPage() {
     isEditing: false,
   });
 
-  // Load tasks
+  // Fetch tasks from backend
   const fetchTasks = async () => {
     const token = await getIdToken();
     const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
@@ -108,38 +108,32 @@ export default function TasksPage() {
   ) => {
     const token = await getIdToken();
     const body: any = {};
-    if (updates.title) body.title = updates.title;
-    if (updates.description) body.description = updates.description;
-    if (updates.date) body.dueDate = updates.date;
-    if (updates.status) body.status = updates.status;
-    const res = await fetch(
-      `${API_BASE}/projects/${projectId}/tasks/${taskId}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      }
-    );
+    if (updates.title !== undefined) body.title = updates.title;
+    if (updates.description !== undefined) body.description = updates.description;
+    if (updates.date !== undefined) body.dueDate = updates.date;
+    if (updates.status !== undefined) body.status = updates.status;
+    const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) throw new Error("Update failed");
     return mapTask(await res.json());
   };
 
   const deleteTaskAPI = async (taskId: string) => {
     const token = await getIdToken();
-    const res = await fetch(
-      `${API_BASE}/projects/${projectId}/tasks/${taskId}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+    const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) throw new Error("Delete failed");
   };
 
-  // Optimistic onDragEnd
+  // Optimistic drag-and-drop
   const onDragEnd = (result: DropResult) => {
     const { source, destination } = result;
     if (!destination) return;
@@ -150,7 +144,7 @@ export default function TasksPage() {
     const [moved] = srcTasks.splice(source.index, 1);
 
     if (srcCol.id === dstCol.id) {
-      // reorder within same column
+      // reorder same column
       srcTasks.splice(destination.index, 0, moved);
       setColumns((cols) =>
         cols.map((c) => (c.id === srcCol.id ? { ...c, tasks: srcTasks } : c))
@@ -166,7 +160,6 @@ export default function TasksPage() {
           return c;
         })
       );
-      // fire update in background
       updateTaskAPI(moved.id, { status: dstCol.id }).catch((err) => {
         console.error("Failed to update task status", err);
         fetchTasks().catch(console.error);
@@ -174,6 +167,7 @@ export default function TasksPage() {
     }
   };
 
+  // Handlers for add/delete/edit
   const onAddNewClick = (columnId: string) =>
     setColumns((cols) =>
       cols.map((c) =>
@@ -288,6 +282,7 @@ export default function TasksPage() {
       )
     );
 
+  // Inline new-task input
   const NewTaskInput: React.FC<{ columnId: string }> = ({ columnId }) => {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
@@ -296,66 +291,23 @@ export default function TasksPage() {
     return (
       <Card variant="outlined" sx={{ mt: 1, mb: 1 }}>
         <CardContent>
-          <TextField
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            fullWidth
-            size="small"
-            autoFocus
-            margin="dense"
-          />
-          <TextField
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            fullWidth
-            size="small"
-            margin="dense"
-            multiline
-            minRows={2}
-          />
-          <TextField
-            label="Due Date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            size="small"
-            margin="dense"
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-          />
+          <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth size="small" autoFocus margin="dense" />
+          <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth size="small" margin="dense" multiline minRows={2} />
+          <TextField label="Due Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" margin="dense" InputLabelProps={{ shrink: true }} />
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-            <Button onClick={() => onCancelNewTask(columnId)} sx={{ mr: 1 }} size="small">
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={() => onSaveNewTask(columnId, title, description, date)}
-              disabled={!title.trim()}
-            >
-              Add
-            </Button>
+            <IconButton onClick={() => onCancelNewTask(columnId)}><CancelIcon /></IconButton>
+            <IconButton onClick={() => onSaveNewTask(columnId, title, description, date)} disabled={!title.trim()}><SaveIcon /></IconButton>
           </Box>
         </CardContent>
       </Card>
     );
   };
 
-  const filterTasks = (tasks: Task[], term: string) => {
-    if (!term.trim()) return tasks;
-    const lt = term.toLowerCase();
-    return tasks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(lt) ||
-        t.description.toLowerCase().includes(lt)
-    );
-  };
-
+  // Render
   return (
     <>
-      <Box sx={{ p: 2, width: "20vw", marginRight: "auto" }}>
+      {/* Search */}
+      <Box sx={{ p: 2, width: "20vw", mr: "auto" }}>
         <TextField
           label="Search tasks"
           variant="outlined"
@@ -364,137 +316,98 @@ export default function TasksPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+            startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
           }}
         />
       </Box>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2,
-            p: 2,
-            height: "100vh",
-            width: "100%",
-          }}
-        >
+        <Box sx={{ display: "flex", gap: 2, p: 2, height: "100vh", width: "100%" }}>
           {columns.map((col) => (
-            <Box
-              key={col.id}
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                flex: "1 1 0",
-                maxWidth: 320,
-                minWidth: 280,
-                borderRadius: 1,
-              }}
-              onMouseEnter={() => setHoveredColumn(col.id)}
-              onMouseLeave={() => setHoveredColumn(null)}
-            >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  px: 2,
-                  py: 1,
-                  fontWeight: "bold",
-                  fontSize: "1.1rem",
-                }}
-              >
-                {col.title} ({col.tasks.length})
-                {hoveredColumn === col.id && (
-                  <IconButton
-                    size="small"
-                    sx={{ ml: "auto" }}
-                    onClick={() => onAddNewClick(col.id)}
-                  >
-                    <AddIcon />
-                  </IconButton>
-                )}
-              </Box>
+            <Box key={col.id} sx={{ flex: 1, maxWidth: 320, minWidth: 280 }}>
+              {/* Header */}
+                <Box
+                  sx={{ display: "flex", alignItems: "center", px: 2, py: 1, fontWeight: "bold" }}
+                  onMouseEnter={() => setHoveredColumn(col.id)}
+                  onMouseLeave={() => setHoveredColumn(null)}
+                >
+                  <Box sx={{ flexGrow: 1 }}>
+                    {col.title} ({col.tasks.length})
+                  </Box>
+                  {hoveredColumn === col.id && (
+                    <IconButton
+                      size="small"
+                      onClick={() => onAddNewClick(col.id)}
+                    >
+                      <AddIcon />
+                    </IconButton>
+                  )}
+                </Box>
 
+              {/* New Task */}
               {col.isAddingNew && <NewTaskInput columnId={col.id} />}
 
+              {/* Task List */}
               <Droppable droppableId={col.id}>
                 {(provided) => (
-                  <Box
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    sx={{
-                      flexGrow: 1,
-                      overflowY: "auto",
-                      px: 1,
-                      py: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 1,
-                    }}
-                  >
-                    {filterTasks(col.tasks, searchTerm).map((task, index) => (
-                      <Draggable key={task.id} draggableId={task.id} index={index}>
-                        {(_prov, snapshot) => (
-                          <Box
-                            ref={_prov.innerRef}
-                            {..._prov.draggableProps}
-                            {..._prov.dragHandleProps}
-                            sx={{
-                              position: "relative",
-                              opacity: snapshot.isDragging ? 0.8 : 1,
-                            }}
-                            onMouseEnter={() => setHoveredTaskId(task.id)}
-                            onMouseLeave={() => setHoveredTaskId(null)}
-                            onDoubleClick={() => onStartEditing(col.id, task.id)}
-                          >
-                            {hoveredTaskId === task.id && !task.isEditing && (
-                              <IconButton
-                                size="small"
-                                sx={{
-                                  position: "absolute",
-                                  top: 4,
-                                  right: 4,
-                                  zIndex: 10,
-                                }}
-                                onClick={() => onDeleteTask(col.id, task.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            )}
+                  <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ flexGrow: 1, overflowY: "auto", px: 1, py: 1 }}>
+                    {col.tasks
+                      .filter((t) =>
+                        !searchTerm
+                          ? true
+                          : t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            t.description.toLowerCase().includes(searchTerm.toLowerCase())
+                      )
+                      .map((task, index) => (
+                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                          {(prov, snapshot) => {
+                            // Local edit fields
+                            const [editTitle, setEditTitle] = useState(task.title);
+                            const [editDesc, setEditDesc] = useState(task.description);
+                            const [editDate, setEditDate] = useState(task.date);
 
-                            {task.isEditing ? (
-                              <Card variant="outlined">
-                                <CardContent>
-                                  <TextField
-                                    fullWidth
-                                    size="small"
-                                    margin="dense"
-                                    label="Title"
-                                    value={task.title}
-                                    onChange={(e) =>
-                                      onSaveEditTask(col.id, task.id, e.target.value, task.description, task.date)
-                                    }
-                                  />
-                                  {/* ... other edit inputs ... */}
-                                </CardContent>
-                              </Card>
-                            ) : (
-                              <Card sx={{ p: 1, cursor: "pointer" }}>
-                                <Typography fontWeight="bold">{task.title}</Typography>
-                                <Typography variant="body2" noWrap>
-                                  {task.description}
-                                </Typography>
-                                {task.date && <Typography variant="caption">Due: {task.date}</Typography>}
-                              </Card>
-                            )}
-                          </Box>
-                        )}
-                      </Draggable>
-                    ))}
+                            return (
+                              <Box
+                                ref={prov.innerRef}
+                                {...prov.draggableProps}
+                                {...prov.dragHandleProps}
+                                sx={{ position: "relative", opacity: snapshot.isDragging ? 0.8 : 1, mb: 1 }}
+                                onMouseEnter={() => setHoveredTaskId(task.id)}
+                                onMouseLeave={() => setHoveredTaskId(null)}
+                              >
+                                {/* Delete */}
+                                {hoveredTaskId === task.id && !task.isEditing && (
+                                  <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, zIndex: 10 }} onClick={() => onDeleteTask(col.id, task.id)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+
+                                {/* Editing Mode */}
+                                {task.isEditing ? (
+                                  <Card variant="outlined">
+                                    <CardContent>
+                                      <TextField fullWidth size="small" margin="dense" label="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                                      <TextField fullWidth size="small" margin="dense" label="Description" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
+                                      <TextField fullWidth size="small" margin="dense" label="Due Date" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                                      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                                        <IconButton size="small" onClick={() => onCancelEditTask(col.id, task.id)}><CancelIcon fontSize="small" /></IconButton>
+                                        <IconButton size="small" onClick={() => onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate)}><SaveIcon fontSize="small" /></IconButton>
+                                      </Box>
+                                    </CardContent>
+                                  </Card>
+                                ) : (
+                                  /* Display Mode */
+                                  <Card sx={{ p: 1, cursor: "pointer" }} onDoubleClick={() => onStartEditing(col.id, task.id)}>
+                                    <Typography fontWeight="bold">{task.title}</Typography>
+                                    <Typography variant="body2" noWrap>{task.description}</Typography>
+                                    {task.date && <Typography variant="caption">Due: {task.date}</Typography>}
+                                  </Card>
+                                )}
+                              </Box>
+                            );
+                          }}
+                        </Draggable>
+                      ))}
                     {provided.placeholder}
                   </Box>
                 )}
