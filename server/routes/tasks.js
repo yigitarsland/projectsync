@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const taskController = require('../controllers/taskController');
 
+// Get all tasks for project
+router.get('/', taskController.getTasksForProject);
+
 // Create a task under project
 router.post('/', taskController.createTask);
 

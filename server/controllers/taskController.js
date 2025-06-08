@@ -25,6 +25,18 @@ exports.getTasks = async (req, res, next) => {
   }
 };
 
+exports.getTasksForProject = async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId).populate('tasks');
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    // send back just the array of task documents
+    res.json(project.tasks);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.createTask = async (req, res, next) => {
   try {
     const { projectId } = req.params;
