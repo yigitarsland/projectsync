@@ -20,6 +20,7 @@ type Task = {
   status: "todo" | "inprogress" | "inreview" | "done";
   isEditing: boolean;
   priority: "low" |  "medium" | "high";
+  assignees: { id: string; name: string }[]; 
 };
 
 type Column = {
@@ -27,6 +28,12 @@ type Column = {
   title: string;
   tasks: Task[];
   isAddingNew: boolean;
+};
+
+type User = {
+  id: string;
+  name: string;
+  avatarUrl?: string;
 };
 
 const initialColumns: Column[] = [
@@ -54,7 +61,8 @@ export default function TasksPage() {
     date: t.dueDate ? t.dueDate.slice(0, 10) : "",
     status: t.status,
     isEditing: false,
-    priority: t.priority || "medium" // Default to medium 
+    priority: t.priority || "medium", // Default to medium 
+  assignees: (t.assignees || []).map((u: any) => ({ id: u._id, name: u.name })),
   });
 
   // Fetch tasks from backend

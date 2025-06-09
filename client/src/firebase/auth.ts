@@ -6,11 +6,15 @@ import {
   browserSessionPersistence,
   signInWithEmailAndPassword,
   signOut,
+  getAuth,
+  createUserWithEmailAndPassword,
+  updateProfile
 } from 'firebase/auth';
 import { firebaseAuth } from './firebaseConfig';
 
 const googleProvider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();
+const auth = getAuth();
 
 // Sign in with Google functionality
 export const signInWithGoogle = async () => {
@@ -70,6 +74,18 @@ export async function signInWithCredentials(email: string, password: string) {
       user: null,
       error: error.message || 'Failed to sign in with email/password',
     };
+  }
+}
+
+export async function registerWithEmailAndPassword(email: string, password: string, name: string) {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, { displayName: name });
+    }
+    return { success: true, user: userCredential.user };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Registration error' };
   }
 }
 

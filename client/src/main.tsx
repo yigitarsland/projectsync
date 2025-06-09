@@ -15,7 +15,7 @@ import GanttChartPage from './pages/ganttchart';
 import ProgressPage from './pages/progress';
 import NotificationsPage from './pages/notifications';
 import SettingsPage from './pages/settings';
-import NavigateToLastProjectTasks from './pages/redirectTasks';  // make sure this default-export matches
+import NavigateToLastProjectTasks from './pages/redirectTasks'; 
 
 const router = createBrowserRouter([
   {
