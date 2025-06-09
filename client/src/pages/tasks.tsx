@@ -10,7 +10,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
-
 import { getIdToken } from "../firebase/authUtils";
 
 type Task = {
@@ -20,6 +19,7 @@ type Task = {
   date: string; // YYYY-MM-DD
   status: "todo" | "inprogress" | "inreview" | "done";
   isEditing: boolean;
+  priority: "low" |  "medium" | "high";
 };
 
 type Column = {
@@ -28,8 +28,6 @@ type Column = {
   tasks: Task[];
   isAddingNew: boolean;
 };
-
-type Priority = 'low' | 'medium' | 'high';
 
 const initialColumns: Column[] = [
   { id: "todo", title: "TO-DO", tasks: [], isAddingNew: false },
@@ -56,6 +54,7 @@ export default function TasksPage() {
     date: t.dueDate ? t.dueDate.slice(0, 10) : "",
     status: t.status,
     isEditing: false,
+    priority: t.priority || "medium" // Default to medium 
   });
 
   // Fetch tasks from backend
@@ -83,7 +82,8 @@ export default function TasksPage() {
     status: Task["status"],
     title: string,
     description: string,
-    date: string
+    date: string,
+    priority: Task["priority"]
   ) => {
     const token = await getIdToken();
     const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
@@ -92,7 +92,7 @@ export default function TasksPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ title, description, dueDate: date, status }), // ← add `status` here
+      body: JSON.stringify({ title, description, dueDate: date, status, priority }), 
     });
     if (!res.ok) throw new Error("Create failed");
     return mapTask(await res.json());
@@ -101,7 +101,7 @@ export default function TasksPage() {
 
   const updateTaskAPI = async (
     taskId: string,
-    updates: Partial<Pick<Task, "title" | "description" | "date" | "status">>
+    updates: Partial<Pick<Task, "title" | "description" | "date" | "status" | "priority">>
   ) => {
     const token = await getIdToken();
     const body: any = {};
@@ -109,6 +109,7 @@ export default function TasksPage() {
     if (updates.description !== undefined) body.description = updates.description;
     if (updates.date !== undefined) body.dueDate = updates.date;
     if (updates.status !== undefined) body.status = updates.status;
+    if (updates.priority !== undefined) body.priority = updates.priority;
     const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
       method: "PUT",
       headers: {
@@ -176,11 +177,12 @@ export default function TasksPage() {
     columnId: string,
     title: string,
     description: string,
-    date: string
+    date: string,
+    priority: Task["priority"]
   ) => {
     if (!title.trim()) return;
     try {
-      const newTask = await createTaskAPI(columnId as any, title, description, date);
+      const newTask = await createTaskAPI(columnId as any, title, description, date, priority);
       setColumns((cols) =>
         cols.map((c) =>
           c.id === columnId
@@ -237,13 +239,15 @@ export default function TasksPage() {
     taskId: string,
     newTitle: string,
     newDesc: string,
-    newDate: string
+    newDate: string,
+    newPriority: Task["priority"]
   ) => {
     try {
       const updated = await updateTaskAPI(taskId, {
         title: newTitle,
         description: newDesc,
         date: newDate,
+        priority: newPriority,
       });
       setColumns((cols) =>
         cols.map((c) =>
@@ -284,21 +288,68 @@ export default function TasksPage() {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [date, setDate] = useState("");
+    const [priority, setPriority] = useState<Task["priority"]>("medium");
 
-    return (
-      <Card variant="outlined" sx={{ mt: 1, mb: 1 }}>
-        <CardContent>
-          <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} fullWidth size="small" autoFocus margin="dense" />
-          <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} fullWidth size="small" margin="dense" multiline minRows={2} />
-          <TextField label="Due Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth size="small" margin="dense" InputLabelProps={{ shrink: true }} />
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-            <IconButton onClick={() => onCancelNewTask(columnId)}><CancelIcon /></IconButton>
-            <IconButton onClick={() => onSaveNewTask(columnId, title, description, date)} disabled={!title.trim()}><SaveIcon /></IconButton>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  };
+  return (
+    <Card variant="outlined" sx={{ mt: 1, mb: 1 }}>
+      <CardContent>
+        <TextField
+          label="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          fullWidth
+          size="small"
+          autoFocus
+          margin="dense"
+        />
+        <TextField
+          label="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          fullWidth
+          size="small"
+          margin="dense"
+          multiline
+          minRows={2}
+        />
+        <TextField
+          label="Due Date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          fullWidth
+          size="small"
+          margin="dense"
+          InputLabelProps={{ shrink: true }}
+        />
+        <FormControl fullWidth size="small" margin="dense">
+          <InputLabel id={`priority-label-${columnId}`}>Priority</InputLabel>
+          <Select
+            labelId={`priority-label-${columnId}`}
+            value={priority}
+            label="Priority"
+            onChange={(e) => setPriority(e.target.value as Task["priority"])}
+          >
+            <MenuItem value="low">Low</MenuItem>
+            <MenuItem value="medium">Medium</MenuItem>
+            <MenuItem value="high">High</MenuItem>
+          </Select>
+        </FormControl>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+          <IconButton onClick={() => onCancelNewTask(columnId)}>
+            <CancelIcon />
+          </IconButton>
+          <IconButton
+            onClick={() => onSaveNewTask(columnId, title, description, date, priority)}
+            disabled={!title.trim()}
+          >
+            <SaveIcon />
+          </IconButton>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
 
   // Render
   return (
@@ -362,6 +413,10 @@ export default function TasksPage() {
                             const [editTitle, setEditTitle] = useState(task.title);
                             const [editDesc, setEditDesc] = useState(task.description);
                             const [editDate, setEditDate] = useState(task.date);
+                            const [editPriority, setEditPriority] = useState<Task["priority"]>(task.priority);
+
+                            const getPriorityColor = (p: Task["priority"]) =>
+                              p === "high" ? "red" : p === "medium" ? "orange" : "green";
 
                             return (
                               <Box
@@ -386,9 +441,22 @@ export default function TasksPage() {
                                       <TextField fullWidth size="small" margin="dense" label="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
                                       <TextField fullWidth size="small" margin="dense" label="Description" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
                                       <TextField fullWidth size="small" margin="dense" label="Due Date" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                                      <FormControl fullWidth size="small" margin="dense">
+                                        <InputLabel id={`edit-priority-label-${task.id}`}>Priority</InputLabel>
+                                        <Select
+                                          labelId={`edit-priority-label-${task.id}`}
+                                          value={editPriority}
+                                          label="Priority"
+                                          onChange={(e) => setEditPriority(e.target.value as Task["priority"])}
+                                        >
+                                          <MenuItem value="low">Low</MenuItem>
+                                          <MenuItem value="medium">Medium</MenuItem>
+                                          <MenuItem value="high">High</MenuItem>
+                                        </Select>
+                                      </FormControl>
                                       <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
                                         <IconButton size="small" onClick={() => onCancelEditTask(col.id, task.id)}><CancelIcon fontSize="small" /></IconButton>
-                                        <IconButton size="small" onClick={() => onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate)}><SaveIcon fontSize="small" /></IconButton>
+                                        <IconButton size="small" onClick={() => onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate, editPriority)}><SaveIcon fontSize="small" /></IconButton>
                                       </Box>
                                     </CardContent>
                                   </Card>
@@ -397,7 +465,12 @@ export default function TasksPage() {
                                   <Card sx={{ p: 1, cursor: "pointer" }} onDoubleClick={() => onStartEditing(col.id, task.id)}>
                                     <Typography fontWeight="bold">{task.title}</Typography>
                                     <Typography variant="body2" noWrap>{task.description}</Typography>
-                                    {task.date && <Typography variant="caption">Due: {task.date}</Typography>}
+                                    {task.date && (
+                                      <Typography variant="caption">Due: {task.date}</Typography>
+                                    )}
+                                    <Typography variant="caption" sx={{ color: getPriorityColor(task.priority), display: "block", mt: 0.5 }}>
+                                      Priority: {task.priority}
+                                    </Typography>
                                   </Card>
                                 )}
                               </Box>

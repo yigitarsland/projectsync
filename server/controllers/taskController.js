@@ -50,11 +50,10 @@ exports.createTask = async (req, res, next) => {
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
     // Check if user is member or owner
-    const allowedUserIds = project.members.map((m) => m.toString());
-    allowedUserIds.push(project.owner.toString());
-    if (!allowedUserIds.includes(user._id.toString())) {
-      return res.status(403).json({ error: "Forbidden" });
+    if (project.owner.toString() !== user._id.toString()) {
+      return res.status(403).json({ error: 'Only project owner can create tasks' });
     }
+
 
     const task = new Task({
       title,
@@ -106,7 +105,19 @@ exports.updateTask = async (req, res, next) => {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    Object.assign(task, updates);
+    const isOwner = project.owner.toString() === user._id.toString();
+
+    if (!isOwner) {
+      // Members can only update status
+      if (!('status' in updates) || Object.keys(updates).length !== 1) {
+        return res.status(403).json({ error: 'Only the status field can be updated by members' });
+      }
+      task.status = updates.status;
+    } else {
+      // Owner can update everything except `project` (which is immutable anyway)
+      Object.assign(task, updates);
+    }
+
     await task.save();
 
     const io = req.app.get("io");
@@ -125,8 +136,14 @@ exports.deleteTask = async (req, res) => {
     // Step 1: Ensure project exists
     const project = await Project.findById(projectId);
     if (!project) {
-      return res.status(404).json({ error: "Project not found" });
+      return res.status(404).json({ error: 'Project not found' });
     }
+    const user = await User.findOne({ firebaseUid: req.user.uid });
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (project.owner.toString() !== user._id.toString()) {
+        return res.status(403).json({ error: 'Only the project owner can delete tasks' });
+      }
 
     // Step 2: Get the task
     const task = await Task.findById(taskId);
