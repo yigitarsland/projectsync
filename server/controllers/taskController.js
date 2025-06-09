@@ -1,22 +1,22 @@
-const Task = require('../models/Task');
-const Project = require('../models/Project');
-const User = require('../models/User');
+const Task = require("../models/Task");
+const Project = require("../models/Project");
+const User = require("../models/User");
 
 exports.getTasks = async (req, res, next) => {
   try {
     const { projectId } = req.params;
 
-    const project = await Project.findById(projectId).populate('tasks');
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const project = await Project.findById(projectId).populate("tasks");
+    if (!project) return res.status(404).json({ error: "Project not found" });
 
     const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
 
     // Check if user is member or owner
-    const allowedUserIds = project.members.map(m => m.toString());
+    const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
     if (!allowedUserIds.includes(user._id.toString())) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     res.json(project.tasks);
@@ -28,8 +28,8 @@ exports.getTasks = async (req, res, next) => {
 exports.getTasksForProject = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const project = await Project.findById(projectId).populate('tasks');
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const project = await Project.findById(projectId).populate("tasks");
+    if (!project) return res.status(404).json({ error: "Project not found" });
     // send back just the array of task documents
     res.json(project.tasks);
   } catch (err) {
@@ -40,29 +40,35 @@ exports.getTasksForProject = async (req, res, next) => {
 exports.createTask = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { title, description, dueDate, assigneeId, subtasks, dependencies } = req.body;
+    const { title, description, dueDate, assigneeId, subtasks, dependencies } =
+      req.body;
 
     const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project) return res.status(404).json({ error: "Project not found" });
 
     const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
 
     // Check if user is member or owner
-    const allowedUserIds = project.members.map(m => m.toString());
+    const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
     if (!allowedUserIds.includes(user._id.toString())) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const task = new Task({
       title,
       description,
-      status: 'todo',
+      status: "todo",
       dueDate,
-      assignee: assigneeId || null,
+      assignees: assigneeId
+        ? Array.isArray(assigneeId)
+          ? assigneeId
+          : [assigneeId]
+        : [],
       subtasks: subtasks || [],
-      dependencies: dependencies || []
+      dependencies: dependencies || [],
+      project: projectId
     });
 
     await task.save();
@@ -71,8 +77,8 @@ exports.createTask = async (req, res, next) => {
     await project.save();
 
     // Emit real-time update via Socket.IO
-    const io = req.app.get('io');
-    io.to(projectId).emit('taskCreated', { task });
+    const io = req.app.get("io");
+    io.to(projectId).emit("taskCreated", { task });
 
     res.status(201).json(task);
   } catch (err) {
@@ -86,25 +92,25 @@ exports.updateTask = async (req, res, next) => {
     const updates = req.body;
 
     const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project) return res.status(404).json({ error: "Project not found" });
 
     const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (!task) return res.status(404).json({ error: "Task not found" });
 
     const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    const allowedUserIds = project.members.map(m => m.toString());
+    const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
     if (!allowedUserIds.includes(user._id.toString())) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     Object.assign(task, updates);
     await task.save();
 
-    const io = req.app.get('io');
-    io.to(projectId).emit('taskUpdated', { task });
+    const io = req.app.get("io");
+    io.to(projectId).emit("taskUpdated", { task });
 
     res.json(task);
   } catch (err) {
@@ -119,18 +125,20 @@ exports.deleteTask = async (req, res) => {
     // Step 1: Ensure project exists
     const project = await Project.findById(projectId);
     if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+      return res.status(404).json({ error: "Project not found" });
     }
 
     // Step 2: Get the task
     const task = await Task.findById(taskId);
     if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
+      return res.status(404).json({ error: "Task not found" });
     }
 
     // Step 3: Validate task belongs to project
     if (task.project && task.project.toString() !== projectId) {
-      return res.status(403).json({ error: 'Task does not belong to this project' });
+      return res
+        .status(403)
+        .json({ error: "Task does not belong to this project" });
     }
 
     // Step 4: Delete task
@@ -140,9 +148,9 @@ exports.deleteTask = async (req, res) => {
     project.tasks.pull(taskId);
     await project.save();
 
-    res.status(200).json({ message: 'Task deleted successfully' });
+    res.status(200).json({ message: "Task deleted successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: "Server error" });
   }
 };

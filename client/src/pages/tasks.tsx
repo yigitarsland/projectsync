@@ -2,15 +2,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import {
-  Box,
-  Card,
-  CardContent,
-  IconButton,
-  TextField,
-  InputAdornment,
-  Typography,
-} from "@mui/material";
+import {InputAdornment, IconButton, Box, Card, CardContent, Typography, Chip, Avatar, AvatarGroup, 
+         Button, Dialog, DialogTitle, DialogContent, DialogActions,
+         TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -34,6 +28,8 @@ type Column = {
   tasks: Task[];
   isAddingNew: boolean;
 };
+
+type Priority = 'low' | 'medium' | 'high';
 
 const initialColumns: Column[] = [
   { id: "todo", title: "TO-DO", tasks: [], isAddingNew: false },
