@@ -462,13 +462,29 @@ export default function TasksPage() {
                                   </Card>
                                 ) : (
                                   /* Display Mode */
-                                  <Card sx={{ p: 1, cursor: "pointer" }} onDoubleClick={() => onStartEditing(col.id, task.id)}>
+                                  <Card
+                                    onDoubleClick={() => onStartEditing(col.id, task.id)}
+                                    sx={{
+                                      p: 1,
+                                      cursor: "pointer",
+                                      border: "1px solid",
+                                      borderColor: getPriorityColor(task.priority),
+                                      // Optionally a subtle shadow or rounded corners
+                                      boxShadow: 1,
+                                      borderRadius: 1,
+                                    }}
+                                  >
                                     <Typography fontWeight="bold">{task.title}</Typography>
-                                    <Typography variant="body2" noWrap>{task.description}</Typography>
+                                    <Typography variant="body2" noWrap>
+                                      {task.description}
+                                    </Typography>
                                     {task.date && (
                                       <Typography variant="caption">Due: {task.date}</Typography>
                                     )}
-                                    <Typography variant="caption" sx={{ color: getPriorityColor(task.priority), display: "block", mt: 0.5 }}>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ display: "block", mt: 0.5, color: getPriorityColor(task.priority) }}
+                                    >
                                       Priority: {task.priority}
                                     </Typography>
                                   </Card>
