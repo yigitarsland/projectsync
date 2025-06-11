@@ -17,6 +17,7 @@ import NotificationsPage from './pages/notifications';
 import SettingsPage from './pages/settings';
 import NavigateToLastProjectTasks from './pages/redirectTasks'; 
 import NavigateToLastProjectGantt from './pages/redirectGantt';
+import NavigateToLastProjectProgress from './pages/redirectProgress';
 
 const router = createBrowserRouter([
   {
@@ -39,6 +40,10 @@ const router = createBrowserRouter([
             element: <NavigateToLastProjectGantt />,
           },
           {
+            path: 'progress',  
+            element: <NavigateToLastProjectProgress />,
+          },
+          {
             path: 'projects/:projectId/tasks',  // actual Kanban route
             element: <TasksPage />,
           },
@@ -47,7 +52,7 @@ const router = createBrowserRouter([
             element: <GanttChartPage />,
           },
           {
-            path: 'progress',
+            path: 'projects/:projectId/progress',
             element: <ProgressPage />,
           },
           {
