@@ -48,8 +48,8 @@ exports.updateUser = async (req, res, next) => {
     const { userId } = req.params;
     const updates = req.body;
 
-    // Only allow updating own user or if admin (owner)
-    const currentUser = await User.findOne({ firebaseUid: req.user.uid });
+    // Use req.user directly - it's already the DB user document
+    const currentUser = req.user;
     if (!currentUser) return res.status(401).json({ error: "Unauthorized" });
 
     if (currentUser._id.toString() !== userId) {
