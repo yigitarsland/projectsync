@@ -24,6 +24,7 @@ const taskSchema = new mongoose.Schema({
   subtasks: [subtaskSchema],
   dependencies: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
   project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, immutable: true }
-});
+},
+{timestamps: true});
 
 module.exports = mongoose.model('Task', taskSchema);

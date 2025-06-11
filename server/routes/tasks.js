@@ -6,8 +6,11 @@ const authMiddleware = require('../middlewares/authenticate');
 // All routes require auth
 router.use(authMiddleware);
 
-// Get all tasks for project
-router.get('/', taskController.getTasksForProject);
+// Old function: get all tasks for project (no user permission check)
+router.get('/all', taskController.getTasksForProject);
+
+// New function: get tasks for project with permission check
+router.get('/', taskController.getTasks);
 
 // Create a task under project
 router.post('/', taskController.createTask);

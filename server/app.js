@@ -7,6 +7,7 @@ const authenticate = require('./middlewares/authenticate');
 const projectRoutes = require('./routes/projects');
 const taskRoutes = require('./routes/tasks');
 const userRoutes = require('./routes/users');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use(authenticate);
 app.use('/projects', projectRoutes);
 app.use('/projects/:projectId/tasks', taskRoutes);
 app.use('/users', userRoutes);
+app.use('/', notificationRoutes);
 
 // Error handler middleware
 app.use((err, req, res, next) => {
