@@ -42,8 +42,7 @@ exports.getTasksForProject = async (req, res, next) => {
 exports.createTask = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { title, description, dueDate, assigneeId, subtasks, dependencies } =
-      req.body;
+    const { title, description, startDate, dueDate, assigneeId, subtasks, dependencies } = req.body;
 
     const project = await Project.findById(projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
@@ -55,10 +54,33 @@ exports.createTask = async (req, res, next) => {
       return res.status(403).json({ error: 'Only project owner can create tasks' });
     }
 
+    // Validate startDate and dueDate if provided
+    if (startDate && dueDate) {
+      const start = new Date(startDate);
+      const due = new Date(dueDate);
+      if (isNaN(start.getTime()) || isNaN(due.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate or dueDate" });
+      }
+      if (start > due) {
+        return res.status(400).json({ error: "startDate cannot be after dueDate" });
+      }
+    } else if (startDate) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate" });
+      }
+    } else if (dueDate) {
+      const due = new Date(dueDate);
+      if (isNaN(due.getTime())) {
+        return res.status(400).json({ error: "Invalid dueDate" });
+      }
+    }
+
     const task = new Task({
       title,
       description,
       status: "todo",
+      startDate, // Include startDate
       dueDate,
       assignees: assigneeId
         ? Array.isArray(assigneeId)
@@ -120,6 +142,21 @@ exports.updateTask = async (req, res, next) => {
 
     const isOwner = project.owner.toString() === user._id.toString();
 
+    // Validate startDate and dueDate if provided in updates
+    if (updates.startDate || updates.dueDate) {
+      const start = updates.startDate ? new Date(updates.startDate) : task.startDate;
+      const due = updates.dueDate ? new Date(updates.dueDate) : task.dueDate;
+      if (start && isNaN(start.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate" });
+      }
+      if (due && isNaN(due.getTime())) {
+        return res.status(400).json({ error: "Invalid dueDate" });
+      }
+      if (start && due && start > due) {
+        return res.status(400).json({ error: "startDate cannot be after dueDate" });
+      }
+    }
+
     if (!isOwner) {
       if (!("status" in updates) || Object.keys(updates).length !== 1) {
         return res
@@ -151,7 +188,6 @@ exports.updateTask = async (req, res, next) => {
     next(err);
   }
 };
-
 
 exports.deleteTask = async (req, res) => {
   const { projectId, taskId } = req.params;

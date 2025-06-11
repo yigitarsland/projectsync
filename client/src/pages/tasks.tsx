@@ -11,12 +11,14 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { getIdToken } from "../firebase/authUtils";
+import { firebaseAuth } from '../firebase/firebaseConfig'; // adjust the path to where your config is
 
 type Task = {
   id: string;
   title: string;
   description: string;
-  date: string; // YYYY-MM-DD
+  startDate: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD (renamed from date)
   status: "todo" | "inprogress" | "inreview" | "done";
   isEditing: boolean;
   priority: "low" |  "medium" | "high";
@@ -58,28 +60,41 @@ export default function TasksPage() {
     id: t._id,
     title: t.title,
     description: t.description || "",
-    date: t.dueDate ? t.dueDate.slice(0, 10) : "",
+    startDate: t.startDate ? t.startDate.slice(0, 10) : "",
+    dueDate: t.dueDate ? t.dueDate.slice(0, 10) : "",
     status: t.status,
     isEditing: false,
-    priority: t.priority || "medium", // Default to medium 
-  assignees: (t.assignees || []).map((u: any) => ({ id: u._id, name: u.name })),
+    priority: t.priority || "medium", // Default to medium
+    assignees: (t.assignees || []).map((u: any) => ({ id: u._id, name: u.name })),
   });
 
   // Fetch tasks from backend
   const fetchTasks = async () => {
-    const token = await getIdToken();
-    const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error("Failed to fetch tasks");
-    const tasks = await res.json();
-    setColumns(
-      initialColumns.map((col) => ({
-        ...col,
-        tasks: tasks.filter((t: any) => t.status === col.id).map(mapTask),
-      }))
-    );
+    if (!firebaseAuth.currentUser) {
+      console.error("No authenticated user found. Cannot fetch tasks.");
+      return;
+    }
+
+    try {
+      const token = await getIdToken();
+      console.log("ID token:", token); // Debug log to verify token presence
+
+      const res = await fetch(`${API_BASE}/projects/${projectId}/tasks`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch tasks");
+      const tasks = await res.json();
+      setColumns(
+        initialColumns.map((col) => ({
+          ...col,
+          tasks: tasks.filter((t: any) => t.status === col.id).map(mapTask),
+        }))
+      );
+    } catch (error: any) {
+      console.error("Error fetching tasks:", error);
+    }
   };
+
 
   useEffect(() => {
     fetchTasks().catch(console.error);
@@ -91,7 +106,8 @@ export default function TasksPage() {
     status: Task["status"],
     title: string,
     description: string,
-    date: string,
+    startDate: string,
+    dueDate: string,
     priority: Task["priority"]
   ) => {
     const token = await getIdToken();
@@ -101,26 +117,25 @@ export default function TasksPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ title, description, dueDate: date, status, priority }), 
+      body: JSON.stringify({ title, description, startDate, dueDate, status, priority }),
     });
     if (!res.ok) throw new Error("Create failed");
     return mapTask(await res.json());
   };
 
-
   const updateTaskAPI = async (
     taskId: string,
-    updates: Partial<Pick<Task, "title" | "description" | "date" | "status" | "priority" | "assignees" >>
+    updates: Partial<Pick<Task, "title" | "description" | "startDate" | "dueDate" | "status" | "priority" | "assignees">>
   ) => {
     const token = await getIdToken();
-    console.log("Token being sent:", token);
     const body: any = {};
     if (updates.title !== undefined) body.title = updates.title;
     if (updates.description !== undefined) body.description = updates.description;
-    if (updates.date !== undefined) body.dueDate = updates.date;
+    if (updates.startDate !== undefined) body.startDate = updates.startDate;
+    if (updates.dueDate !== undefined) body.dueDate = updates.dueDate;
     if (updates.status !== undefined) body.status = updates.status;
     if (updates.priority !== undefined) body.priority = updates.priority;
-  if (updates.assignees !== undefined) body.assignees = updates.assignees.map((u) => u.id); // Send IDs only
+    if (updates.assignees !== undefined) body.assignees = updates.assignees.map((u) => u.id); // Send IDs only
 
     const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
       method: "PUT",
@@ -154,13 +169,11 @@ export default function TasksPage() {
     const [moved] = srcTasks.splice(source.index, 1);
 
     if (srcCol.id === dstCol.id) {
-      // reorder same column
       srcTasks.splice(destination.index, 0, moved);
       setColumns((cols) =>
         cols.map((c) => (c.id === srcCol.id ? { ...c, tasks: srcTasks } : c))
       );
     } else {
-      // move between columns
       const dstTasks = Array.from(dstCol.tasks);
       dstTasks.splice(destination.index, 0, moved);
       setColumns((cols) =>
@@ -200,12 +213,13 @@ export default function TasksPage() {
     columnId: string,
     title: string,
     description: string,
-    date: string,
+    startDate: string,
+    dueDate: string,
     priority: Task["priority"]
   ) => {
     if (!title.trim()) return;
     try {
-      const newTask = await createTaskAPI(columnId as any, title, description, date, priority);
+      const newTask = await createTaskAPI(columnId as any, title, description, startDate, dueDate, priority);
       setColumns((cols) =>
         cols.map((c) =>
           c.id === columnId
@@ -262,15 +276,17 @@ export default function TasksPage() {
     taskId: string,
     newTitle: string,
     newDesc: string,
-    newDate: string,
+    newStartDate: string,
+    newDueDate: string,
     newPriority: Task["priority"],
-    newAssignees: User[],
+    newAssignees: User[]
   ) => {
     try {
       const updated = await updateTaskAPI(taskId, {
         title: newTitle,
         description: newDesc,
-        date: newDate,
+        startDate: newStartDate,
+        dueDate: newDueDate,
         priority: newPriority,
         assignees: newAssignees,
       });
@@ -294,7 +310,7 @@ export default function TasksPage() {
     }
   };
 
-  const onCancelEditTask = (columnId: string, taskId: string) =>
+   const onCancelEditTask = (columnId: string, taskId: string) =>
     setColumns((cols) =>
       cols.map((c) =>
         c.id === columnId
@@ -312,7 +328,8 @@ export default function TasksPage() {
   const NewTaskInput: React.FC<{ columnId: string }> = ({ columnId }) => {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [date, setDate] = useState("");
+    const [startDate, setStartDate] = useState("");  
+    const [dueDate, setDueDate] = useState("");
     const [priority, setPriority] = useState<Task["priority"]>("medium");
 
   return (
@@ -338,10 +355,20 @@ export default function TasksPage() {
           minRows={2}
         />
         <TextField
+          label="Start Date"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          fullWidth
+          size="small"
+          margin="dense"
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
           label="Due Date"
           type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
           fullWidth
           size="small"
           margin="dense"
@@ -365,7 +392,7 @@ export default function TasksPage() {
             <CancelIcon />
           </IconButton>
           <IconButton
-            onClick={() => onSaveNewTask(columnId, title, description, date, priority)}
+            onClick={() => onSaveNewTask(columnId, title, description, startDate, dueDate, priority)}
             disabled={!title.trim()}
           >
             <SaveIcon />
@@ -437,7 +464,8 @@ export default function TasksPage() {
                             // Local edit fields
                             const [editTitle, setEditTitle] = useState(task.title);
                             const [editDesc, setEditDesc] = useState(task.description);
-                            const [editDate, setEditDate] = useState(task.date);
+                            const [editStartDate, setEditStartDate] = useState(task.startDate);
+                            const [editDueDate, setEditDueDate] = useState(task.dueDate);
                             const [editPriority, setEditPriority] = useState<Task["priority"]>(task.priority);
                             const [editAssignees, setEditAssignees] = useState<User[]>(task.assignees);
 
@@ -488,10 +516,20 @@ export default function TasksPage() {
                                         fullWidth
                                         size="small"
                                         margin="dense"
+                                        label="Start Date"
+                                        type="date"
+                                        value={editStartDate}
+                                        onChange={(e) => setEditStartDate(e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                      />
+                                      <TextField
+                                        fullWidth
+                                        size="small"
+                                        margin="dense"
                                         label="Due Date"
                                         type="date"
-                                        value={editDate}
-                                        onChange={(e) => setEditDate(e.target.value)}
+                                        value={editDueDate}
+                                        onChange={(e) => setEditDueDate(e.target.value)}
                                         InputLabelProps={{ shrink: true }}
                                       />
                                       <FormControl fullWidth size="small" margin="dense">
@@ -543,7 +581,7 @@ export default function TasksPage() {
                                         <IconButton
                                           size="small"
                                           onClick={() =>
-                                            onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate, editPriority, editAssignees)
+                                            onSaveEditTask(col.id, task.id, editTitle, editDesc, editStartDate, editDueDate, editPriority, editAssignees)
                                           }
                                         >
                                           <SaveIcon fontSize="small" />
@@ -572,8 +610,8 @@ export default function TasksPage() {
                                     <Typography variant="body2" noWrap>
                                       {task.description}
                                     </Typography>
-                                    {task.date && (
-                                      <Typography variant="caption">Due: {task.date}</Typography>
+                                    {task.dueDate && (
+                                      <Typography variant="caption">Due: {task.dueDate}</Typography>
                                     )}
                                     <Typography
                                       variant="caption"

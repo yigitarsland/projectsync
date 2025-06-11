@@ -18,6 +18,7 @@ const taskSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high'],
     default: 'medium',
   },
+  startDate: Date, // New field for task start date
   dueDate: Date,
   assignees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   subtasks: [subtaskSchema],
