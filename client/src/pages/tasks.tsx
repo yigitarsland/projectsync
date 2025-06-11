@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {InputAdornment, IconButton, Box, Card, CardContent, Typography, Chip, Avatar, AvatarGroup, 
          Button, Dialog, DialogTitle, DialogContent, DialogActions,
-         TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete} from "@mui/material";
+         TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, Stack, ListItemText, Checkbox} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -20,7 +20,7 @@ type Task = {
   status: "todo" | "inprogress" | "inreview" | "done";
   isEditing: boolean;
   priority: "low" |  "medium" | "high";
-  assignees: { id: string; name: string }[]; 
+  assignees: User[]; 
 };
 
 type Column = {
@@ -83,6 +83,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks().catch(console.error);
+    fetchUsers().catch(console.error);
   }, [projectId]);
 
   // API helpers
@@ -109,7 +110,7 @@ export default function TasksPage() {
 
   const updateTaskAPI = async (
     taskId: string,
-    updates: Partial<Pick<Task, "title" | "description" | "date" | "status" | "priority">>
+    updates: Partial<Pick<Task, "title" | "description" | "date" | "status" | "priority" | "assignees" >>
   ) => {
     const token = await getIdToken();
     const body: any = {};
@@ -118,6 +119,8 @@ export default function TasksPage() {
     if (updates.date !== undefined) body.dueDate = updates.date;
     if (updates.status !== undefined) body.status = updates.status;
     if (updates.priority !== undefined) body.priority = updates.priority;
+  if (updates.assignees !== undefined) body.assignees = updates.assignees.map((u) => u.id); // Send IDs only
+
     const res = await fetch(`${API_BASE}/projects/${projectId}/tasks/${taskId}`, {
       method: "PUT",
       headers: {
@@ -171,6 +174,17 @@ export default function TasksPage() {
         fetchTasks().catch(console.error);
       });
     }
+  };
+
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
+  const fetchUsers = async () => {
+  const token = await getIdToken();
+  const res = await fetch(`${API_BASE}/projects/${projectId}/users`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  setAllUsers(data.map((u: any) => ({ id: u._id, name: u.name })));
   };
 
   // Handlers for add/delete/edit
@@ -248,7 +262,8 @@ export default function TasksPage() {
     newTitle: string,
     newDesc: string,
     newDate: string,
-    newPriority: Task["priority"]
+    newPriority: Task["priority"],
+    newAssignees: User[],
   ) => {
     try {
       const updated = await updateTaskAPI(taskId, {
@@ -256,6 +271,7 @@ export default function TasksPage() {
         description: newDesc,
         date: newDate,
         priority: newPriority,
+        assignees: newAssignees,
       });
       setColumns((cols) =>
         cols.map((c) =>
@@ -422,9 +438,14 @@ export default function TasksPage() {
                             const [editDesc, setEditDesc] = useState(task.description);
                             const [editDate, setEditDate] = useState(task.date);
                             const [editPriority, setEditPriority] = useState<Task["priority"]>(task.priority);
+                            const [editAssignees, setEditAssignees] = useState<User[]>(task.assignees);
 
                             const getPriorityColor = (p: Task["priority"]) =>
                               p === "high" ? "red" : p === "medium" ? "orange" : "green";
+
+                            const MAX_AVATARS = 3;
+                            const extraCount = task.assignees.length - MAX_AVATARS;
+                            const avatarsToShow = task.assignees.slice(0, MAX_AVATARS);
 
                             return (
                               <Box
@@ -446,9 +467,32 @@ export default function TasksPage() {
                                 {task.isEditing ? (
                                   <Card variant="outlined">
                                     <CardContent>
-                                      <TextField fullWidth size="small" margin="dense" label="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                                      <TextField fullWidth size="small" margin="dense" label="Description" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-                                      <TextField fullWidth size="small" margin="dense" label="Due Date" type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                                      <TextField
+                                        fullWidth
+                                        size="small"
+                                        margin="dense"
+                                        label="Title"
+                                        value={editTitle}
+                                        onChange={(e) => setEditTitle(e.target.value)}
+                                      />
+                                      <TextField
+                                        fullWidth
+                                        size="small"
+                                        margin="dense"
+                                        label="Description"
+                                        value={editDesc}
+                                        onChange={(e) => setEditDesc(e.target.value)}
+                                      />
+                                      <TextField
+                                        fullWidth
+                                        size="small"
+                                        margin="dense"
+                                        label="Due Date"
+                                        type="date"
+                                        value={editDate}
+                                        onChange={(e) => setEditDate(e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                      />
                                       <FormControl fullWidth size="small" margin="dense">
                                         <InputLabel id={`edit-priority-label-${task.id}`}>Priority</InputLabel>
                                         <Select
@@ -462,13 +506,53 @@ export default function TasksPage() {
                                           <MenuItem value="high">High</MenuItem>
                                         </Select>
                                       </FormControl>
+
+                                      {/* Assignees Multi-Select */}
+                                      <FormControl fullWidth size="small" margin="dense">
+                                        <InputLabel id={`edit-assignees-label-${task.id}`}>Assignees</InputLabel>
+                                        <Select
+                                          labelId={`edit-assignees-label-${task.id}`}
+                                          multiple
+                                          value={editAssignees.map((a) => a.id)}
+                                          onChange={(e) => {
+                                            const selectedIds = e.target.value as string[];
+                                            const selectedUsers = allUsers.filter((u) => selectedIds.includes(u.id));
+                                            setEditAssignees(selectedUsers);
+                                          }}
+                                          renderValue={(selected) => {
+                                            const names = (selected as string[])
+                                              .map((id) => allUsers.find((u) => u.id === id)?.name)
+                                              .filter(Boolean);
+                                            return names.join(", ");
+                                          }}
+                                        >
+                                          {allUsers.map((user) => (
+                                            <MenuItem key={user.id} value={user.id}>
+                                              <Checkbox checked={editAssignees.some((a) => a.id === user.id)} />
+                                              <ListItemText primary={user.name} />
+                                            </MenuItem>
+                                          ))}
+                                        </Select>
+                                      </FormControl>
+
                                       <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-                                        <IconButton size="small" onClick={() => onCancelEditTask(col.id, task.id)}><CancelIcon fontSize="small" /></IconButton>
-                                        <IconButton size="small" onClick={() => onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate, editPriority)}><SaveIcon fontSize="small" /></IconButton>
+                                        <IconButton size="small" onClick={() => onCancelEditTask(col.id, task.id)}>
+                                          <CancelIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() =>
+                                            onSaveEditTask(col.id, task.id, editTitle, editDesc, editDate, editPriority, editAssignees)
+                                          }
+                                        >
+                                          <SaveIcon fontSize="small" />
+                                        </IconButton>
                                       </Box>
                                     </CardContent>
                                   </Card>
+                                  
                                 ) : (
+                                  
                                   /* Display Mode */
                                   <Card
                                     onDoubleClick={() => onStartEditing(col.id, task.id)}
@@ -480,6 +564,7 @@ export default function TasksPage() {
                                       // Optionally a subtle shadow or rounded corners
                                       boxShadow: 1,
                                       borderRadius: 1,
+                                      position: "relative" // To position avatars absolute inside card
                                     }}
                                   >
                                     <Typography fontWeight="bold">{task.title}</Typography>
@@ -495,6 +580,41 @@ export default function TasksPage() {
                                     >
                                       Priority: {task.priority}
                                     </Typography>
+                                    {/* Avatar Stack */}
+                                    <Stack
+                                      direction="row"
+                                      spacing={-0.5}
+                                      sx={{
+                                        position: "absolute",
+                                        bottom: 4,
+                                        right: 4,
+                                        zIndex: 10,
+                                      }}
+                                    >
+                                      {avatarsToShow.map((user) => (
+                                        <Avatar
+                                          key={user.id}
+                                          alt={user.name}
+                                          src={user.avatarUrl}
+                                          sx={{ width: 24, height: 24, border: '2px solid white', fontSize: 12 }}
+                                        />
+                                      ))}
+
+                                      {extraCount > 0 && (
+                                        <Avatar
+                                          sx={{
+                                            width: 24,
+                                            height: 24,
+                                            fontSize: 12,
+                                            bgcolor: 'grey.500',
+                                            border: '2px solid white',
+                                          }}
+                                        >
+                                          +{extraCount}
+                                        </Avatar>
+                                      )}
+                                    </Stack>
+
                                   </Card>
                                 )}
                               </Box>

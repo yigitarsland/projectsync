@@ -6,13 +6,15 @@ exports.getTasks = async (req, res, next) => {
   try {
     const { projectId } = req.params;
 
-    const project = await Project.findById(projectId).populate("tasks");
+    const project = await Project.findById(projectId).populate({
+      path: "tasks",
+      populate: { path: "assignees", select: "name email" } // populate assignees with minimal user info
+    });
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     const user = await User.findOne({ firebaseUid: req.user.uid });
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    // Check if user is member or owner
     const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
     if (!allowedUserIds.includes(user._id.toString())) {
@@ -28,9 +30,11 @@ exports.getTasks = async (req, res, next) => {
 exports.getTasksForProject = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const project = await Project.findById(projectId).populate("tasks");
+    const project = await Project.findById(projectId).populate({
+      path: "tasks",
+      populate: { path: "assignees", select: "name email" }
+    });
     if (!project) return res.status(404).json({ error: "Project not found" });
-    // send back just the array of task documents
     res.json(project.tasks);
   } catch (err) {
     next(err);
