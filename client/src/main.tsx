@@ -16,6 +16,7 @@ import ProgressPage from './pages/progress';
 import NotificationsPage from './pages/notifications';
 import SettingsPage from './pages/settings';
 import NavigateToLastProjectTasks from './pages/redirectTasks'; 
+import NavigateToLastProjectGantt from './pages/redirectGantt';
 
 const router = createBrowserRouter([
   {
@@ -34,11 +35,15 @@ const router = createBrowserRouter([
             element: <NavigateToLastProjectTasks />,
           },
           {
+            path: 'ganttchart',  
+            element: <NavigateToLastProjectGantt />,
+          },
+          {
             path: 'projects/:projectId/tasks',  // actual Kanban route
             element: <TasksPage />,
           },
           {
-            path: 'ganttchart',
+            path: 'projects/:projectId/ganttchart',
             element: <GanttChartPage />,
           },
           {
