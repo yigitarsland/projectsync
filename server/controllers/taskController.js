@@ -1,6 +1,5 @@
 const Task = require("../models/Task");
 const Project = require("../models/Project");
-const User = require("../models/User");
 
 exports.getTasks = async (req, res, next) => {
   try {
@@ -8,12 +7,11 @@ exports.getTasks = async (req, res, next) => {
 
     const project = await Project.findById(projectId).populate({
       path: "tasks",
-      populate: { path: "assignees", select: "name email" } // populate assignees with minimal user info
+      populate: { path: "assignees", select: "name email" }
     });
     if (!project) return res.status(404).json({ error: "Project not found" });
 
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const user = req.user;
 
     const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
@@ -50,14 +48,12 @@ exports.createTask = async (req, res, next) => {
     const project = await Project.findById(projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
 
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const user = req.user;
 
-    // Check if user is member or owner
+    // Only project owner can create tasks
     if (project.owner.toString() !== user._id.toString()) {
       return res.status(403).json({ error: 'Only project owner can create tasks' });
     }
-
 
     const task = new Task({
       title,
@@ -94,44 +90,68 @@ exports.updateTask = async (req, res, next) => {
     const { projectId, taskId } = req.params;
     const updates = req.body;
 
+    console.log("Received update for task:", taskId);
+    console.log("Update payload:", updates);
+
     const project = await Project.findById(projectId);
-    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (!project) {
+      console.log("Project not found:", projectId);
+      return res.status(404).json({ error: "Project not found" });
+    }
 
     const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: "Task not found" });
+    if (!task) {
+      console.log("Task not found:", taskId);
+      return res.status(404).json({ error: "Task not found" });
+    }
 
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const user = req.user;
+
+    console.log("Current user:", user._id.toString());
+    console.log("Project owner:", project.owner.toString());
+    console.log("Project members:", project.members.map(m => m.toString()));
 
     const allowedUserIds = project.members.map((m) => m.toString());
     allowedUserIds.push(project.owner.toString());
     if (!allowedUserIds.includes(user._id.toString())) {
+      console.log("User not allowed to update task");
       return res.status(403).json({ error: "Forbidden" });
     }
 
     const isOwner = project.owner.toString() === user._id.toString();
 
     if (!isOwner) {
-      // Members can only update status
-      if (!('status' in updates) || Object.keys(updates).length !== 1) {
-        return res.status(403).json({ error: 'Only the status field can be updated by members' });
+      if (!("status" in updates) || Object.keys(updates).length !== 1) {
+        return res
+          .status(403)
+          .json({ error: "Only the status field can be updated by members" });
       }
       task.status = updates.status;
     } else {
-      // Owner can update everything except `project` (which is immutable anyway)
+      if ("project" in updates) delete updates.project;
+
       Object.assign(task, updates);
     }
 
-    await task.save();
+    console.log("Task after applying updates:", task);
+
+    try {
+      await task.save();
+    } catch (saveError) {
+      console.error("Task save failed:", saveError);
+      return res.status(400).json({ error: "Update failed", details: saveError.message });
+    }
 
     const io = req.app.get("io");
     io.to(projectId).emit("taskUpdated", { task });
 
     res.json(task);
   } catch (err) {
+    console.error("Unexpected error updating task:", err);
     next(err);
   }
 };
+
 
 exports.deleteTask = async (req, res) => {
   const { projectId, taskId } = req.params;
@@ -142,12 +162,12 @@ exports.deleteTask = async (req, res) => {
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    
+    const user = req.user;
 
-      if (project.owner.toString() !== user._id.toString()) {
-        return res.status(403).json({ error: 'Only the project owner can delete tasks' });
-      }
+    if (project.owner.toString() !== user._id.toString()) {
+      return res.status(403).json({ error: 'Only the project owner can delete tasks' });
+    }
 
     // Step 2: Get the task
     const task = await Task.findById(taskId);

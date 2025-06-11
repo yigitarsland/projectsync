@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const taskController = require('../controllers/taskController');
+const authMiddleware = require('../middlewares/authenticate');
+
+// All routes require auth
+router.use(authMiddleware);
 
 // Get all tasks for project
 router.get('/', taskController.getTasksForProject);

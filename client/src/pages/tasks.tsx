@@ -113,6 +113,7 @@ export default function TasksPage() {
     updates: Partial<Pick<Task, "title" | "description" | "date" | "status" | "priority" | "assignees" >>
   ) => {
     const token = await getIdToken();
+    console.log("Token being sent:", token);
     const body: any = {};
     if (updates.title !== undefined) body.title = updates.title;
     if (updates.description !== undefined) body.description = updates.description;

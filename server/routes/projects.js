@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const projectController = require('../controllers/projectController');
+const authMiddleware = require('../middlewares/authenticate'); 
 
 // Get all projects
 router.get('/', projectController.getAllProjects); 
@@ -16,5 +17,8 @@ router.put('/:projectId', projectController.updateProject);
 
 // Delete project
 router.delete('/:projectId', projectController.deleteProject);
+
+// Get users
+router.get('/:projectId/users', authMiddleware, projectController.getProjectUsers);
 
 module.exports = router;

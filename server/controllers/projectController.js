@@ -104,3 +104,34 @@ exports.deleteProject = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getProjectUsers = async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId)
+      .populate("members", "name email") // populate members
+      .populate("owner", "name email"); // populate owner
+
+    if (!project) return res.status(404).json({ error: "Project not found" });
+
+    // Combine owner and members
+    const users = [
+      {
+        _id: project.owner._id,
+        name: project.owner.name,
+        email: project.owner.email,
+      },
+      ...project.members
+        .filter((m) => m._id.toString() !== project.owner._id.toString())
+        .map((member) => ({
+          _id: member._id,
+          name: member.name,
+          email: member.email,
+        })),
+    ];
+
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+};
