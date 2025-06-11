@@ -1,4 +1,6 @@
 
+![My Logo](client/public/ProjectSync.png)
+
 # ProjectSync: Collaborative Project Tracking Webapp
 
 ## Core Features
@@ -44,7 +46,6 @@ Support user roles (e.g., project manager, team member) with login functionality
 ### Charts and Visualizations:
 
 - Chart.js: For Gantt charts, pie charts, and burndown charts.
-- D3.js (optional): For custom interactive visualizations if Chart.js is insufficient.
 
 ### Real-Time:
 
@@ -58,5 +59,5 @@ Support user roles (e.g., project manager, team member) with login functionality
 
 ### Authentication:
 
-- Firebase Authentication or Auth0: For secure user login.
+- Firebase Authentication : For secure user login with Google & Github options.
  
