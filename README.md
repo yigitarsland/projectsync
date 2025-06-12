@@ -18,56 +18,53 @@ Tasks have attributes like title, description, assignee, due date, and priority.
 Support nested tasks (subtasks) displayed in expandable tables or tree views.
 Allow users to collapse/expand task hierarchies for better organization.
 
-![Gantt Chart](client/public/4.png)
-
 ### Gantt Chart:
 
 Visualize project timelines with task start/end dates and dependencies.
 Highlight critical paths or overdue tasks.
 
-![Pie Chart](client/public/5.png)
+![Gantt Chart](client/public/4.png)
 
 ### Progress Tracking:
 
 Generate charts (e.g., pie chart for task completion, burndown chart for sprint progress).
 Display project-level and team-level metrics.
 
-![Notifications](client/public/1.png)
+![Pie Chart](client/public/5.png)
 
 ### Real-Time Collaboration:
 
 Update task statuses and board changes in real time for all team members.
 Notify users of task assignments or comments via in-app notifications.
 
-![Login](client/public/2.png)
+![Notifications](client/public/1.png)
 
 ### User Authentication:
 
 Support user roles (e.g., project manager, team member) with login functionality.
+
+![Login](client/public/2.png)
 
 ## Technologies
 
 ### Frontend:
 
 - React.js: For a dynamic, component-based UI. 
-- React-Beautiful-DnD: For drag-and-drop Kanban boards.
-- Material-UI or Tailwind CSS: For responsive, polished styling.
-
-### Charts and Visualizations:
-
-- Chart.js: For Gantt charts, pie charts, and burndown charts.
-
-### Real-Time:
-
-- Socket.IO: For real-time task updates.
-- Firebase: For real-time database and authentication as a simpler alternative.
+- @hello-pangea/dnd: For drag-and-drop Kanban boards.
+- Material-UI: For responsive, polished styling.
+- recharts: For pie charts.
 
 ### Backend:
 
 - Node.js + Express: For REST API to manage projects, tasks, and users.
-- MongoDB: For storing project and task data with nested structures.
+- MongoDB: For storing project, user, notification and task data with nested structures.
+
+### Real-Time:
+
+- Socket.IO: For real-time task updates.
 
 ### Authentication:
 
 - Firebase Authentication : For secure user login with Google & Github options.
  
+
