@@ -104,7 +104,7 @@ export default function Progress() {
   }));
 
   return (
-    <div style={{ width: "80%", height: 600 }}>
+    <div style={{ width: "100%", height: 600 }}>
     <Typography variant="h6" gutterBottom>
       Task Status Distribution
     </Typography>

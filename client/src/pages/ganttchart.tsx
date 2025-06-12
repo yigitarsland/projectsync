@@ -141,7 +141,7 @@ const GanttChartPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: "0vw", minWidth: 0, marginLeft: -150, marginTop: -30, maxWidth: "100vw", color: "#fff" }}>
+    <div style={{ padding: "0vw", minWidth: 0, marginRight: 30, marginLeft: "auto", marginTop: -20, maxWidth: "100vw", color: "#fff" }}>
       <h1 style={{ fontSize: "2.5vw" }}>Gantt Chart for Project {project?.name || projectId}</h1>
 
       <div

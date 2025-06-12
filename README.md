@@ -3,6 +3,8 @@
 
 # ProjectSync: Collaborative Project Tracking Webapp
 
+![Tasks Page](client/public/ss.png)
+
 ## Core Features
 
 ### Kanban Board:
