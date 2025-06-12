@@ -3,9 +3,9 @@
 
 # ProjectSync: Collaborative Project Tracking Webapp
 
-![Tasks Page](client/public/ss.png)
-
 ## Core Features
+
+![Kanban Board](client/public/3.png)
 
 ### Kanban Board:
 
@@ -18,20 +18,28 @@ Tasks have attributes like title, description, assignee, due date, and priority.
 Support nested tasks (subtasks) displayed in expandable tables or tree views.
 Allow users to collapse/expand task hierarchies for better organization.
 
+![Gantt Chart](client/public/4.png)
+
 ### Gantt Chart:
 
 Visualize project timelines with task start/end dates and dependencies.
 Highlight critical paths or overdue tasks.
+
+![Pie Chart](client/public/5.png)
 
 ### Progress Tracking:
 
 Generate charts (e.g., pie chart for task completion, burndown chart for sprint progress).
 Display project-level and team-level metrics.
 
+![Notifications](client/public/1.png)
+
 ### Real-Time Collaboration:
 
 Update task statuses and board changes in real time for all team members.
 Notify users of task assignments or comments via in-app notifications.
+
+![Login](client/public/2.png)
 
 ### User Authentication:
 
